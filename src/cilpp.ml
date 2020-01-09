@@ -77,7 +77,7 @@ let dumpFiles (pp: Cil.cilPrinter) (out : out_channel) (outfile: string) (file :
 let () =
     let (newTempName, originalOutfile, saveTemps, ppPluginsToLoad, ppPassesToRun) = parseArgsAndRunCppDivertingToTempFile "i" in
     (* Okay, run CIL; we need the post-preprocessing line directive style *)
-    Cil.lineDirectiveStyle := Some Cil.LinePreprocessorOutput;
+    Cil.lineDirectiveStyle := Some Cil.LineCommentSparse;
     (* We have to use logical operators to avoid breaking code that does -Werror=format-string
      * ... this involves an expression-level check of the first argument to printf, which
      * might be a conditional expression. So we can't substitute it with a temporary assigned
