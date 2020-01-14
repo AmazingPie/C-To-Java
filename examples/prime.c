@@ -1,3 +1,7 @@
+/*  Taken from https://www.javatpoint.com/prime-number-program-in-c and modified
+    by Chris Jones
+*/
+
 //#include <stdio.h>
 
 int isPrime(int n) {
