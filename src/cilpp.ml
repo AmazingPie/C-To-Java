@@ -80,6 +80,8 @@ let dumpFiles (pp: cilPrinter) (out : out_channel) (outfile: string) (file : fil
 let pTypeSig : (typ -> typsig) ref =
   ref (fun _ -> E.s (E.bug "pTypeSig not initialized"))
 
+let _ = pTypeSig := typeSig
+
 let getParenthLevelAttrParam (a: attrparam) = 
   (* Create an expression of the same shape, and use {!getParenthLevel} *)
   match a with 
@@ -894,7 +896,8 @@ class javaPrinterClass : cilPrinter = object (self)
                 (self#pInit () i))
           ++ text ";\n"
       
-    (* print global variable 'extern' declarations, and function prototypes *)    
+    (* print global variable 'extern' declarations, and function prototypes *) 
+    (* Can possibly remove this entirely but need to check for ramifications in java*)
     | GVarDecl (vi, l) ->
         if not !printCilAsIs && H.mem builtinFunctions vi.vname then begin
           (* Compiler builtins need no prototypes. Just print them in
