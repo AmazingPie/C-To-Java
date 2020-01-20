@@ -916,33 +916,8 @@ class javaPrinterClass : cilPrinter = object (self)
           text ("__asm__(\"" ^ escape_string s ^ "\");\n")
 
     | GPragma (Attr(an, args), l) ->
-        (* sm: suppress printing pragmas that gcc does not understand *)
-        (* assume anything starting with "ccured" is ours *)
-        (* also don't print the 'combiner' pragma *)
-        (* nor 'cilnoremove' *)
-        let suppress =
-          not !print_CIL_Input && 
-          not !msvcMode &&
-          ((startsWith "box" an) ||
-           (startsWith "ccured" an) ||
-           (an = "merger") ||
-           (an = "cilnoremove")) in
-        let d =
-    match an, args with
-    | _, [] ->
-              text an
-    | "weak", [ACons (symbol, [])] ->
-        text "weak " ++ text symbol
-    | _ ->
-            text (an ^ "(")
-              ++ docList ~sep:(chr ',') (self#pAttrParam ()) () args
-              ++ text ")"
-        in
-        self#pLineDirective l 
-          ++ (if suppress then text "/* " else text "")
-          ++ (text "#pragma ")
-          ++ d
-          ++ (if suppress then text " */\n" else text "\n")
+        (* Don't need pragmas so just ignore them *)
+        nil
 
     | GText s  -> 
         if s <> "//" then 
@@ -1336,9 +1311,6 @@ class javaPrinterClass : cilPrinter = object (self)
       text " " ++ res ++ text " "
 
 end (* JavaPrinter *)
-
-
-
 
 
 let () =
