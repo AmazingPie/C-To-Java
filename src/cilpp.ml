@@ -183,6 +183,8 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ (self#pExpPrec level () e3)
 
     | CastE(t,e) -> 
+        let t_attr = typeAttrs t in
+        let ts = setTypeAttrs t t_attr in
         text "(" 
           ++ self#pType None () t
           ++ text ")"
@@ -234,7 +236,7 @@ class javaPrinterClass : cilPrinter = object (self)
   false
     in
     if needParens then
-      chr '(' ++ self#pExp () e ++ chr ')'
+      text "(%" ++ self#pExp () e ++ chr ')'
     else
       self#pExp () e
 
@@ -1041,14 +1043,14 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ name
 
     | TInt (ikind,a) -> 
-        d_ikind () ikind 
-          ++ self#pAttrs () a 
+        self#pAttrs () a 
+          ++ d_ikind () ikind 
           ++ text " "
           ++ name
 
     | TFloat(fkind, a) -> 
-        d_fkind () fkind 
-          ++ self#pAttrs () a 
+        self#pAttrs () a 
+          ++ d_fkind () fkind 
           ++ text " " 
           ++ name
 
