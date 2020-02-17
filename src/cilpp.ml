@@ -138,7 +138,7 @@ class javaPrinterClass : cilPrinter = object (self)
         self#pOffset
           ((self#pExpPrec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
     | Mem e, NoOffset -> 
-        text "*" ++ self#pExpPrec derefStarLevel () e
+        self#pExpPrec derefStarLevel () e
     | Mem e, o ->
         self#pOffset
           (text "(*" ++ self#pExpPrec derefStarLevel () e ++ text ")") o
@@ -236,7 +236,7 @@ class javaPrinterClass : cilPrinter = object (self)
   false
     in
     if needParens then
-      text "(%" ++ self#pExp () e ++ chr ')'
+      text "(" ++ self#pExp () e ++ chr ')'
     else
       self#pExp () e
 
@@ -341,32 +341,66 @@ class javaPrinterClass : cilPrinter = object (self)
   method private getPrintInstrTerminator () = printInstrTerminator
 
   (*** INSTRUCTIONS ****)
-  method pInstr () (i:instr) =       (* imperative instruction *)
-    match i with
-    | Set(lv,e,l) -> begin
-        (* Be nice to some special cases *)
-        match e with
-          BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
-            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+  (*Print pointer instruction*)
+  method private pPInstr () (Set(lv,e,l):instr) =
+    match e with
+      (*Increment/Decrement*)
+    | BinOp((PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
+        when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+          self#pLineDirective l
+            ++ self#pLvalPrec indexLevel () lv
+            ++ text "_offset"
+            ++ text (" ++" ^ printInstrTerminator)
+
+    | BinOp((MinusPI),Lval(lv'),
+            Const(CInt64(one,_,_)), _) 
+        when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
               self#pLineDirective l
                 ++ self#pLvalPrec indexLevel () lv
-                ++ text (" ++" ^ printInstrTerminator)
+                ++ text "_offset" 
+                ++ text (" --" ^ printInstrTerminator) 
 
-        | BinOp((MinusA|MinusPI),Lval(lv'),
-                Const(CInt64(one,_,_)), _) 
-            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
-                  self#pLineDirective l
-                    ++ self#pLvalPrec indexLevel () lv
-                    ++ text (" --" ^ printInstrTerminator) 
+    | BinOp((PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
+        when Util.equals lv lv' && mone = Int64.minus_one 
+            && not !printCilAsIs ->
+          self#pLineDirective l
+            ++ self#pLvalPrec indexLevel () lv
+            ++ text "_offset"
+            ++ text (" --" ^ printInstrTerminator)
 
-        | BinOp((PlusA|PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
-            when Util.equals lv lv' && mone = Int64.minus_one 
-                && not !printCilAsIs ->
-              self#pLineDirective l
-                ++ self#pLvalPrec indexLevel () lv
-                ++ text (" --" ^ printInstrTerminator)
+    | _ ->
+            self#pLineDirective l
+              ++ self#pLval () lv
+              ++ text " = "
+              ++ self#pExp () e
+              ++ text printInstrTerminator
 
-        | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
+
+  (*Print arithmetic instruction*)
+  method private pAInstr () (Set(lv,e,l):instr) =
+    match e with
+    (*Increment/Decrement*)
+    | BinOp((PlusA),Lval(lv'),Const(CInt64(one,_,_)),_)
+        when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+          self#pLineDirective l
+            ++ self#pLvalPrec indexLevel () lv
+            ++ text (" ++" ^ printInstrTerminator)
+
+    | BinOp((MinusA),Lval(lv'),
+            Const(CInt64(one,_,_)), _) 
+        when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+          self#pLineDirective l
+            ++ self#pLvalPrec indexLevel () lv
+            ++ text (" --" ^ printInstrTerminator) 
+
+    | BinOp((PlusA),Lval(lv'),Const(CInt64(mone,_,_)),_)
+        when Util.equals lv lv' && mone = Int64.minus_one 
+            && not !printCilAsIs ->
+          self#pLineDirective l
+            ++ self#pLvalPrec indexLevel () lv
+            ++ text (" --" ^ printInstrTerminator)
+
+    | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
           Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
                 Lval(lv'),e,_) when Util.equals lv lv' 
                 && not !printCilAsIs ->
@@ -376,15 +410,17 @@ class javaPrinterClass : cilPrinter = object (self)
                     ++ text "= "
                     ++ self#pExp () e
                     ++ text printInstrTerminator
-                    
-        | _ ->
+
+    | _ ->
             self#pLineDirective l
               ++ self#pLval () lv
               ++ text " = "
               ++ self#pExp () e
               ++ text printInstrTerminator
-              
-    end
+
+  (*Print call or asm instruction*)
+  method private pCInstr () (i:instr) =
+    match i with
       (* In cabs2cil we have turned the call to builtin_va_arg into a 
        * three-argument call: the last argument is the address of the 
        * destination *)
@@ -541,6 +577,103 @@ class javaPrinterClass : cilPrinter = object (self)
                              clobs)))
                   ++ unalign)
             ++ text (")" ^ printInstrTerminator)
+
+
+  method pInstr () (i:instr) = 
+    (*Delegate to either pPInstr, pAInstr or pCInstr*)
+    match i with
+    | Set(lv,e,l) -> begin
+        match e with 
+        | BinOp((PlusPI|IndexPI|MinusPI|MinusPP),_,_,_) -> self#pPInstr () i
+        | _ -> self#pAInstr () i
+    end
+    | Call(_,_,_,_) -> self#pCInstr () i
+    | Asm(_,_,_,_,_,_) -> self#pCInstr () i
+
+  (* method pInstr () (i:instr) =       (* imperative instruction *)
+    match i with
+    | Set(lv,e,l) -> begin
+        (* Be nice to some special cases *)
+        match e with
+        (*Standard arithmetic*)
+          (*Increment/Decrement*)
+          BinOp((PlusA),Lval(lv'),Const(CInt64(one,_,_)),_)
+            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+              self#pLineDirective l
+                ++ self#pLvalPrec indexLevel () lv
+                ++ text (" ++" ^ printInstrTerminator)
+
+        | BinOp((MinusA),Lval(lv'),
+                Const(CInt64(one,_,_)), _) 
+            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+                  self#pLineDirective l
+                    ++ self#pLvalPrec indexLevel () lv
+                    ++ text (" --" ^ printInstrTerminator) 
+
+        | BinOp((PlusA),Lval(lv'),Const(CInt64(mone,_,_)),_)
+            when Util.equals lv lv' && mone = Int64.minus_one 
+                && not !printCilAsIs ->
+              self#pLineDirective l
+                ++ self#pLvalPrec indexLevel () lv
+                ++ text (" --" ^ printInstrTerminator)
+
+        (*Pointer arithmetic*)
+          (*Increment/Decrement*)
+        | BinOp((PlusPI|IndexPI),Lval(lv'),Const(CInt64(one,_,_)),_)
+            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+              self#pLineDirective l
+                ++ self#pLvalPrec indexLevel () lv
+                ++ text "_offset"
+                ++ text (" ++" ^ printInstrTerminator)
+
+        | BinOp((PlusPI|IndexPI),Lval(lv'),_,_)
+            when not !printCilAsIs ->
+              let lval = lv in 
+              self#pLineDirective l
+                ++ self#pLvalPrec indexLevel () lv
+                ++ text "_offset = "
+                ++ self#pExp () e
+                ++ text printInstrTerminator
+
+        | BinOp((MinusPI),Lval(lv'),
+                Const(CInt64(one,_,_)), _) 
+            when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
+                  self#pLineDirective l
+                    ++ self#pLvalPrec indexLevel () lv
+                    ++ text "_offset" 
+                    ++ text (" --" ^ printInstrTerminator) 
+
+        | BinOp((PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
+            when Util.equals lv lv' && mone = Int64.minus_one 
+                && not !printCilAsIs ->
+              self#pLineDirective l
+                ++ self#pLvalPrec indexLevel () lv
+                ++ text "_offset"
+                ++ text (" --" ^ printInstrTerminator)
+
+        | BinOp((PlusA|PlusPI|IndexPI|MinusA|MinusPP|MinusPI|BAnd|BOr|BXor|
+          Mult|Div|Mod|Shiftlt|Shiftrt) as bop,
+                Lval(lv'),e,_) when Util.equals lv lv' 
+                && not !printCilAsIs ->
+                  self#pLineDirective l
+                    ++ self#pLval () lv
+                    ++ text " " ++ d_binop () bop
+                    ++ text "= "
+                    ++ self#pExp () e
+                    ++ text printInstrTerminator
+                    
+                    (*POSSIBLY INSERT ANOTHER SPECIAL POINTER CASE HERE?*)
+                    (*Check PlusPI/MinusPI (they are pointer cases)*)
+        (*| BinOp(_,_,_, TPtr)*)
+
+        | _ ->
+            self#pLineDirective l
+              ++ self#pLval () lv
+              ++ text " = "
+              ++ self#pExp () e
+              ++ text printInstrTerminator
+              
+    end *)
             
 
   (**** STATEMENTS ****)
@@ -1081,7 +1214,9 @@ class javaPrinterClass : cilPrinter = object (self)
 
           | _ -> None, bt
         in
-        let name' = text "*" ++ printAttributes a ++ name in
+        let offset = (text "int " ++ name ++ text "_offset") in
+        let name' = (text "[]" ++ printAttributes a ++ name ++ text " ;\n" 
+                      ++ offset) in
         let name'' = (* Put the parenthesis *)
           match paren with 
             Some p -> p ++ name' ++ text ")" 
