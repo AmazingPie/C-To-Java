@@ -349,8 +349,7 @@ class javaPrinterClass : cilPrinter = object (self)
         ++ text " = "         (*a =     *)
         ++ self#pLval () lv'  (*a = y   *)
     | _ ->
-        text "--Other one here--"
-        (*++ self#pExp () e*)   (*a_offset = y + 3  *)(*<- shave +3 off*)
+        assert false (*Shouldn't ever get here*)
 
   (*Print Java offset assignment*)
   method private pObjOffset (lv:lval) (e:exp) =
@@ -1251,7 +1250,7 @@ class javaPrinterClass : cilPrinter = object (self)
 
           | _ -> None, bt
         in
-        let offset = (text "int " ++ name ++ text "_offset") in
+        let offset = (text "int " ++ name ++ text "_offset = 0") in
         let name' = (text "[]" ++ printAttributes a ++ name ++ text " ;\n" 
                       ++ offset) in
         let name'' = (* Put the parenthesis *)
