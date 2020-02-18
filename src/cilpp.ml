@@ -341,6 +341,38 @@ class javaPrinterClass : cilPrinter = object (self)
   method private getPrintInstrTerminator () = printInstrTerminator
 
   (*** INSTRUCTIONS ****)
+  (*Print Java object assignment*)
+  method private pObj (lv:lval) (e:exp) = 
+    match e with
+    | BinOp(_,Lval(lv'),_,_) -> 
+        self#pLval () lv      (*a       *)
+        ++ text " = "         (*a =     *)
+        ++ self#pLval () lv'  (*a = y   *)
+    | _ ->
+        text "--Other one here--"
+        (*++ self#pExp () e*)   (*a_offset = y + 3  *)(*<- shave +3 off*)
+
+  (*Print Java offset assignment*)
+  method private pObjOffset (lv:lval) (e:exp) =
+    match e with
+    | BinOp((PlusPI|IndexPI),Lval(lv'),e,_) ->
+        self#pLval () lv        (*a                     *)
+          ++ text "_offset"     (*a_offset              *)
+          ++ text " = "         (*a_offset =            *)
+          ++ self#pLval () lv'  (*a_offset = y          *)
+          ++ text "_offset"     (*a_offset = y_offset   *)
+          ++ text " + "         (*a_offset = y_offset + *)
+          ++ self#pExp () e
+    | BinOp((MinusPI),Lval(lv'),e,_) ->
+        self#pLval () lv        (*a                     *)
+          ++ text "_offset"     (*a_offset              *)
+          ++ text " = "         (*a_offset =            *)
+          ++ self#pLval () lv'  (*a_offset = y          *)
+          ++ text "_offset"     (*a_offset = y_offset   *)
+          ++ text " + "         (*a_offset = y_offset - *)
+          ++ self#pExp () e
+
+
   (*Print pointer instruction*)
   method private pPInstr () (Set(lv,e,l):instr) =
     match e with
@@ -355,10 +387,10 @@ class javaPrinterClass : cilPrinter = object (self)
     | BinOp((MinusPI),Lval(lv'),
             Const(CInt64(one,_,_)), _) 
         when Util.equals lv lv' && one = Int64.one && not !printCilAsIs ->
-              self#pLineDirective l
-                ++ self#pLvalPrec indexLevel () lv
-                ++ text "_offset" 
-                ++ text (" --" ^ printInstrTerminator) 
+          self#pLineDirective l
+            ++ self#pLvalPrec indexLevel () lv
+            ++ text "_offset" 
+            ++ text (" --" ^ printInstrTerminator) 
 
     | BinOp((PlusPI|IndexPI),Lval(lv'),Const(CInt64(mone,_,_)),_)
         when Util.equals lv lv' && mone = Int64.minus_one 
@@ -370,10 +402,15 @@ class javaPrinterClass : cilPrinter = object (self)
 
     | _ ->
             self#pLineDirective l
-              ++ self#pLval () lv
-              ++ text " = "
-              ++ self#pExp () e
+              ++ self#pObj lv e
               ++ text printInstrTerminator
+              ++ text "\n"
+              ++ self#pObjOffset lv e
+              ++ text printInstrTerminator
+              (*
+              ++ self#pLval () lv
+              ++ self#pExp () e
+              *)
 
 
   (*Print arithmetic instruction*)
