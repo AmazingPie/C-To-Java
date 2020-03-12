@@ -1158,20 +1158,9 @@ class javaPrinterClass : cilPrinter = object (self)
                 (self#pInit () i))
           ++ text ";\n"
       
-    (* print global variable 'extern' declarations, and function prototypes *) 
-    (* Can possibly remove this entirely but need to check for ramifications in java*)
+    (* Don't need to print extern's or prototypes *)
     | GVarDecl (vi, l) ->
-        if not !printCilAsIs && H.mem builtinFunctions vi.vname then begin
-          (* Compiler builtins need no prototypes. Just print them in
-             comments. *)
-          text "/* compiler builtin: \n   " ++
-            (self#pVDecl () vi)
-            ++ text ";  */\n"
-          
-        end else
-          self#pLineDirective l ++
-            (self#pVDecl () vi)
-            ++ text ("; /* has total " ^ (string_of_int (List.length vi.vvardecls)) ^ " decls */ \n")
+        nil
 
     | GAsm (s, l) ->
         self#pLineDirective l ++
@@ -1325,9 +1314,6 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ self#pAttrs () a 
           ++ name
     | TPtr (bt, a)  -> 
-        (*TODO: change this to just print the straight type (without ptr)
-          when name == nil*)
-
         (* Parenthesize the ( * attr name) if a pointer to a function or an 
          * array. However, on MSVC the __stdcall modifier must appear right 
          * before the pointer constructor "(__stdcall *f)". We push them into 
