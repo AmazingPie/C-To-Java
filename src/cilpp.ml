@@ -505,15 +505,16 @@ class javaPrinterClass : cilPrinter = object (self)
         | None -> E.s (E.error "Have to use malloc to init var")
         | Some (Var destvar, _) ->
           text "new " ++ self#pType None () destvar.vtype
-            ++ chr '[' ++ args ++ chr ']'
+            ++ chr '[' ++ args ++ chr ']' ++ text printInstrTerminator
       else if func.vname = "free" then
         match dest with
         | None -> nil
         | Some _ -> E.s (E.error "Free is void type")
     (* Just a regular function -- print function name and args*)  
       else
-        self#pExp () e ++ args
-    | _ -> text "(" ++ self#pExp () e ++ text ")" ++ args)
+        self#pExp () e ++ args ++ text printInstrTerminator
+    | _ -> text "(" ++ self#pExp () e ++ text ")" ++ args
+      ++ text printInstrTerminator)
 
   (*Print call or asm instruction*)
   method private pCInstr () (i:instr) =
@@ -613,7 +614,7 @@ class javaPrinterClass : cilPrinter = object (self)
                ++ (docList ~sep:(chr ',' ++ break) 
                      (self#pExp ()) () args)
                ++ unalign)
-            ++ text (")" ^ printInstrTerminator) in
+            ++ text ")" in
             self#pFuncCall e dest func_args)
 
     | Asm(attrs, tmpls, outs, ins, clobs, l) ->
@@ -1311,10 +1312,16 @@ class javaPrinterClass : cilPrinter = object (self)
 
           | _ -> None, bt
         in
-        let offset = (text "int " ++ name ++ text "_offset = 0") in
-        let init = (text " = new " ++ text "int" ++ text "[100]") in
-        let name' = (text "[]" ++ printAttributes a ++ name ++ init
-                      ++ text ";\n" ++ offset) in
+        (* Is this a variable declaration or just a type? *)
+        let name' = 
+          (if name = nil then 
+            nil
+          else
+            let offset = (text "int " ++ name ++ text "_offset = 0") in
+            let init = (text " = new " ++ text "int" ++ text "[100]") in
+            text "[]" ++ printAttributes a ++ name ++ init
+                          ++ text ";\n" ++ offset)
+        in
         let name'' = (* Put the parenthesis *)
           match paren with 
             Some p -> p ++ name' ++ text ")" 
