@@ -138,7 +138,11 @@ class javaPrinterClass : cilPrinter = object (self)
         self#pOffset
           ((self#pExpPrec arrowLevel () e) ++ text ("->" ^ fi.fname)) o
     | Mem e, NoOffset -> 
-        self#pExpPrec derefStarLevel () e
+        (self#pExpPrec derefStarLevel () e) 
+          ++ text "["
+          ++ (self#pExpOffsets () e)    (*might need to split this up to print offset after the first lval encountered in the expression (should always be the only one)*)
+          (*++ text "_offset"*)
+          ++ text "]"
     | Mem e, o ->
         self#pOffset
           (text "(*" ++ self#pExpPrec derefStarLevel () e ++ text ")") o
@@ -150,6 +154,24 @@ class javaPrinterClass : cilPrinter = object (self)
         self#pOffset (base ++ text "." ++ text fi.fname) o
     | Index (e, o) ->
         self#pOffset (base ++ text "[" ++ self#pExp () e ++ text "]") o
+
+  method private pExpOffsets () (e: exp) =
+    match e with
+      (*This next match will likely print _offset after any lval is entered
+        not just pointer values*)
+      | Lval(lv) -> self#pLval () lv ++ text "_offset" 
+      | BinOp(b,Lval(lv),e,_) ->
+          if b == PlusPI || b == IndexPI || b == MinusPI then
+            align
+              ++ self#pLval () lv
+              ++ text "_offset "
+              ++ d_binop () b
+              ++ chr ' '
+              ++ self#pExpOffsets () e
+              ++ unalign
+          else
+            self#pExpPrec derefStarLevel () e
+      | _ -> self#pExpPrec derefStarLevel () e
 
   method private pLvalPrec (contextprec: int) () lv = 
     if getParenthLevel (Lval(lv)) >= contextprec then
@@ -166,7 +188,30 @@ class javaPrinterClass : cilPrinter = object (self)
     | UnOp(u,e1,_) -> 
         (d_unop () u) ++ chr ' ' ++ (self#pExpPrec level () e1)
           
+    (*| BinOp(b,Lval(lv),e',_) ->
+        if b == PlusPI || b == IndexPI || b == MinusPI then
+          align
+            ++ self#pLval () lv
+            ++ text "_offset "
+            ++ d_binop () b
+            ++ chr ' '
+            ++ self#pExpPrec level () e'
+            ++ unalign
+            (*Might want to include a duplicate case but where the second
+              expression is an Lval*)
+        else
+          self#pExp () e*)
+
     | BinOp(b,e1,e2,_) -> 
+        (*let ptr = 
+          if (b == PlusPI || b == IndexPI || b == MinusPI) && (e1 == Lval()) then
+            self#pExp () e1 ++ text "_offset"
+          else
+            self#pExpPrec level () e1
+        in*)
+          (*match b with
+          | (PlusPI|IndexPI|MinusPI) -> 
+          | _ -> self#pExpPrec level () e1*)
         align 
           ++ (self#pExpPrec level () e1)
           ++ chr ' ' 
@@ -360,7 +405,7 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ text " = "         (*a_offset =            *)
           ++ self#pLval () lv'  (*a_offset = y          *)
           ++ text "_offset"     (*a_offset = y_offset   *)
-          ++ text " + "         (*a_offset = y_offset + *)
+          ++ text " + "         (*a_offset = y_offset + *)  (*TODO: Fix this appending sign as some cases may not need it and it could screw up arithmetic*)
           ++ self#pExp () e
     | BinOp((MinusPI),Lval(lv'),e,_) ->
         self#pLval () lv        (*a                     *)
@@ -368,9 +413,8 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ text " = "         (*a_offset =            *)
           ++ self#pLval () lv'  (*a_offset = y          *)
           ++ text "_offset"     (*a_offset = y_offset   *)
-          ++ text " + "         (*a_offset = y_offset - *)
+          ++ text " - "         (*a_offset = y_offset - *)
           ++ self#pExp () e
-
 
   (*Print pointer instruction*)
   method private pPInstr () (Set(lv,e,l):instr) =
@@ -399,6 +443,8 @@ class javaPrinterClass : cilPrinter = object (self)
             ++ text "_offset"
             ++ text (" --" ^ printInstrTerminator)
 
+    | BinOp(_,_,Const(CInt64(_,_,_)),TInt(_,_)) ->
+            text "this one"   (*This does not catch the y = 4 issue*)
     | _ ->
             self#pLineDirective l
               ++ self#pObj lv e
@@ -406,11 +452,6 @@ class javaPrinterClass : cilPrinter = object (self)
               ++ text "\n"
               ++ self#pObjOffset lv e
               ++ text printInstrTerminator
-              (*
-              ++ self#pLval () lv
-              ++ self#pExp () e
-              *)
-
 
   (*Print arithmetic instruction*)
   method private pAInstr () (Set(lv,e,l):instr) =
@@ -545,18 +586,27 @@ class javaPrinterClass : cilPrinter = object (self)
                                             (!pTypeSig destt)) ->
                     text "(" ++ self#pType None () destt ++ text ")"
                 | _ -> nil))
-          (* Now the function name *)
-          ++ (let ed = self#pExp () e in
-              match e with 
-                Lval(Var _, _) -> ed
-              | _ -> text "(" ++ ed ++ text ")")
-          ++ text "(" ++ 
-          (align
-             (* Now the arguments *)
-             ++ (docList ~sep:(chr ',' ++ break) 
-                   (self#pExp ()) () args)
-             ++ unalign)
-        ++ text (")" ^ printInstrTerminator)
+          (* Store the args -- will print later if regular function *)
+          ++ (let func_args = 
+            text "(" ++ 
+              (align
+               ++ (docList ~sep:(chr ',' ++ break) 
+                     (self#pExp ()) () args)
+               ++ unalign)
+            ++ text (")" ^ printInstrTerminator) in
+          (* Look for special cases *)
+          (match e with 
+              | Lval(Var func, _) -> 
+                if func.vname = "malloc" then
+                  match dest with
+                  | None -> E.s (E.error "Have to use malloc to init var")
+                  | Some (Var destvar, _) ->
+                    text "new " ++ self#pType None () destvar.vtype
+                      ++ chr '[' ++ func_args ++ chr ']'
+              (* Just a regular function -- print function name and args*)
+                else
+                  self#pExp () e ++ func_args
+              | _ -> text "(" ++ self#pExp () e ++ text ")" ++ func_args))
 
     | Asm(attrs, tmpls, outs, ins, clobs, l) ->
         if !msvcMode then
@@ -1234,6 +1284,9 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ self#pAttrs () a 
           ++ name
     | TPtr (bt, a)  -> 
+        (*TODO: change this to just print the straight type (without ptr)
+          when name == nil*)
+
         (* Parenthesize the ( * attr name) if a pointer to a function or an 
          * array. However, on MSVC the __stdcall modifier must appear right 
          * before the pointer constructor "(__stdcall *f)". We push them into 
@@ -1251,8 +1304,9 @@ class javaPrinterClass : cilPrinter = object (self)
           | _ -> None, bt
         in
         let offset = (text "int " ++ name ++ text "_offset = 0") in
-        let name' = (text "[]" ++ printAttributes a ++ name ++ text " ;\n" 
-                      ++ offset) in
+        let init = (text " = new " ++ text "int" ++ text "[100]") in
+        let name' = (text "[]" ++ printAttributes a ++ name ++ init
+                      ++ text ";\n" ++ offset) in
         let name'' = (* Put the parenthesis *)
           match paren with 
             Some p -> p ++ name' ++ text ")" 
