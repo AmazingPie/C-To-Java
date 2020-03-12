@@ -2,7 +2,7 @@
     by Chris Jones
 */
 
-//#include <stdio.h>
+#include <stdio.h>
 
 int isPrime(int n) {
 	int i,m=0,flag=0;
@@ -18,7 +18,7 @@ int isPrime(int n) {
 	}
 	return 0;
 }
-/*
+
 int main() {
 	printf("Enter the number to check prime:");
         int n = 0;
@@ -31,4 +31,3 @@ int main() {
 	}
 	return 0;
 }
-*/
