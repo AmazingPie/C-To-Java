@@ -207,7 +207,13 @@ class javaPrinterClass : cilPrinter = object (self)
   method pExp () (e: exp) : doc = 
     let level = getParenthLevel e in
     match e with
-      Const(c) -> d_const () c
+      Const(c) -> 
+        (match c with 
+        | CInt64(i,_,_) ->
+          (*Make sure no prefixes or suffixes are added to integers*)
+          let new_const = CInt64(i,IInt,Some (Int64.to_string i)) in
+          d_const () new_const
+        | _ -> d_const () c)
     | Lval(l) -> self#pLval () l
     | UnOp(u,e1,_) -> 
         (d_unop () u) ++ chr ' ' ++ (self#pExpPrec level () e1)
@@ -529,11 +535,13 @@ class javaPrinterClass : cilPrinter = object (self)
         | None -> E.s (E.error "malloc/calloc has to init var")
         | Some (Var destvar, _) ->
           text "new " ++ self#pType None () destvar.vtype
-            ++ chr '[' ++ args ++ chr ']' ++ text printInstrTerminator
+            ++ text "[(" ++ args ++ text ") / " 
+            ++ num (getSizeOfType destvar.vtype) ++ chr ']' 
+            ++ text printInstrTerminator
       else if func.vname = "free" then
         match dest with
         | None -> nil
-        | Some _ -> E.s (E.error "Free is void type")
+        | Some _ -> E.s (E.error "Free is void type -- should not be assigned")
     (* Just a regular function -- print function name and args*)  
       else
         self#pExp () e ++ args ++ text printInstrTerminator
