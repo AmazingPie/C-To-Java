@@ -495,6 +495,26 @@ class javaPrinterClass : cilPrinter = object (self)
               ++ self#pExp () e
               ++ text printInstrTerminator
 
+  (*Print function call, not including assignment*)
+  method private pFuncCall (e:exp) (dest:lval option) (args:doc) = 
+    (* Look for special cases *)
+    (match e with 
+    | Lval(Var func, _) -> 
+      if func.vname = "malloc" then
+        match dest with
+        | None -> E.s (E.error "Have to use malloc to init var")
+        | Some (Var destvar, _) ->
+          text "new " ++ self#pType None () destvar.vtype
+            ++ chr '[' ++ args ++ chr ']'
+      else if func.vname = "free" then
+        match dest with
+        | None -> nil
+        | Some _ -> E.s (E.error "Free is void type")
+    (* Just a regular function -- print function name and args*)  
+      else
+        self#pExp () e ++ args
+    | _ -> text "(" ++ self#pExp () e ++ text ")" ++ args)
+
   (*Print call or asm instruction*)
   method private pCInstr () (i:instr) =
     match i with
@@ -594,19 +614,7 @@ class javaPrinterClass : cilPrinter = object (self)
                      (self#pExp ()) () args)
                ++ unalign)
             ++ text (")" ^ printInstrTerminator) in
-          (* Look for special cases *)
-          (match e with 
-              | Lval(Var func, _) -> 
-                if func.vname = "malloc" then
-                  match dest with
-                  | None -> E.s (E.error "Have to use malloc to init var")
-                  | Some (Var destvar, _) ->
-                    text "new " ++ self#pType None () destvar.vtype
-                      ++ chr '[' ++ func_args ++ chr ']'
-              (* Just a regular function -- print function name and args*)
-                else
-                  self#pExp () e ++ func_args
-              | _ -> text "(" ++ self#pExp () e ++ text ")" ++ func_args))
+            self#pFuncCall e dest func_args)
 
     | Asm(attrs, tmpls, outs, ins, clobs, l) ->
         if !msvcMode then
