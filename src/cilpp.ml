@@ -94,6 +94,30 @@ let getParenthLevelAttrParam (a: attrparam) =
   | ADot _ | AIndex _ | AStar _ -> 20
   | AQuestion _ -> 100
 
+(*This is based on Java primitive data type sizes. This shouldn't affect
+  malloc calls because it will be divided by itself anyway.*)
+let rec getSizeOfType (t : typ) =
+  match t with
+  | TVoid _ -> 4
+  | TInt(ikind,_) ->
+    (match ikind with
+    | IBool -> 1
+    | IChar | ISChar | IUChar | IShort | IUShort -> 2
+    | IInt | IUInt -> 4
+    | ILong | IULong | ILongLong | IULongLong -> 8
+    | IInt128 | IUInt128 ->
+      E.warn "integer < 64bit being shortened to 64bit";
+      8)
+  | TFloat(fkind,_) ->
+    (match fkind with
+    | FFloat -> 4
+    | FDouble | FLongDouble -> 8)
+  | TPtr(t',_) ->
+    getSizeOfType t'
+  | _ -> 
+    E.warn "gotten size of non-variable type";
+    0
+
 
 class javaPrinterClass : cilPrinter = object (self)
   val mutable currentFormals : varinfo list = []
@@ -236,7 +260,7 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ self#pExpPrec level () e
 
     | SizeOf (t) -> 
-        text "sizeof(" ++ self#pType None () t ++ chr ')'
+      num (getSizeOfType t)
     | SizeOfE (Lval (Var fv, NoOffset)) when fv.vname = "__builtin_va_arg_pack" && (not !printCilAsIs) -> 
         text "__builtin_va_arg_pack()"
     | SizeOfE (e) ->  
@@ -500,9 +524,9 @@ class javaPrinterClass : cilPrinter = object (self)
     (* Look for special cases *)
     (match e with 
     | Lval(Var func, _) -> 
-      if func.vname = "malloc" then
+      if func.vname = "malloc" || func.vname = "calloc" then
         match dest with
-        | None -> E.s (E.error "Have to use malloc to init var")
+        | None -> E.s (E.error "malloc/calloc has to init var")
         | Some (Var destvar, _) ->
           text "new " ++ self#pType None () destvar.vtype
             ++ chr '[' ++ args ++ chr ']' ++ text printInstrTerminator
