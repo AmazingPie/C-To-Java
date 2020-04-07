@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -23,13 +24,29 @@ int main() {
 		int f = input - 12934;
 		int g = input + 124908;
 
-		int *h = &a;
-		int *i = &b;
-		int *j = &c;
-		int *k = &d;
-		int *l = &e;
-		int *m = &f;
-		int *n = &g;
+		int *h = malloc(10 * sizeof(int*));
+		int *i = malloc(5 * sizeof(int*));
+		int *j = malloc(2 * sizeof(int*));
+		int *k = malloc(10 * sizeof(int*));
+		int *l = malloc(20 * sizeof(int*));
+		int *m = malloc(100 * sizeof(int*));
+		int *n = malloc(150 * sizeof(int*));
+
+		int *hh = h;
+		int *ii = i;
+		int *jj = j;
+		int *kk = k;
+		int *ll = l;
+		int *mm = m;
+		int *nn = n;
+
+		*h = a;
+		*i = b;
+		*j = c;
+		*k = d;
+		*l = e;
+		*m = f;
+		*n = g;
 
 		*h = e;
 		*i = a;
@@ -41,29 +58,38 @@ int main() {
 		*h = *k;
 		*l = *i;
 		*n = *m;
-/*
+
 		k++;
-		l--;
+		l++;
 		m++;
 		n++;
 		n++;
 		n++;
 		n++;
-		h--;
+		h++;
 
-		k = k + 4;
+		k = k + 4;	
 		l = l + 2 + 4 + 8;
 		m = m + 52;
 		n = n + 72;
-		h = h + 2 + 2 + 2 + 2;*/
+		h = h + 2 + 2 + 2 + 2;
 		ans = *h + *i + *j + *k + *l + *m + *n;
+
+		free(hh);
+		free(ii);
+		free(jj);
+		free(kk);
+		free(ll);
+		free(mm);
+		free(nn);
 	}
 	//Below is benchmark specific that won't get timed or compiled into Java
 	clock_t end = clock();
 	double time = (double)(end - start) / CLOCKS_PER_SEC;
-	printf("Total Time: %fns\n", time);
-	printf("Average Time: %fns\n", time/runs);
-	printf("Result: %d\n",ans);
+	printf("%f;", time);	//only print total time in seconds like so
+	//0.001168;0.001168;0.001168
+	//printf("Average Time: %fs\n", time/runs);
+	//printf("Result: %d\n",ans);
 
 	return 0;
 	//return *h + *i + *j + *k + *l + *m + *n;
