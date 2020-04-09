@@ -121,6 +121,7 @@ let rec getSizeOfType (t : typ) =
 
 class javaPrinterClass : cilPrinter = object (self)
   val mutable currentFormals : varinfo list = []
+  val inMainFunc : bool ref = ref false
   method private getLastNamedArgument (s:string) : exp =
     match List.rev currentFormals with 
       f :: _ -> Lval (var f)
@@ -129,6 +130,10 @@ class javaPrinterClass : cilPrinter = object (self)
 
   method private setCurrentFormals (fms : varinfo list) =
     currentFormals <- fms
+
+  method private setInMainFunc (b : bool) =
+    inMainFunc := b;
+    nil
 
   (*** VARIABLES ***)
   (* variable use *)
@@ -142,7 +147,9 @@ class javaPrinterClass : cilPrinter = object (self)
      * Getting this right is a bit hairy. Let's try as follows. The definition
      * should take the "max" of *)
     if beginsFunDef && v.vname = "main" then
-      text "public static void main(String[] args)" ++ self#pAttrs () rest
+      (*E.warn "setting inmain func true";
+      self#setInMainFunc true ++*)
+        text "public static void main(String[] args)" ++ self#pAttrs () rest
     else
       text (if v.vinline then "__inline " else "")
         (* suppress extern on a function definition if it's not inline,;
@@ -283,7 +290,15 @@ class javaPrinterClass : cilPrinter = object (self)
     | AlignOfE (e) -> 
         text "__alignof__(" ++ self#pExp () e ++ chr ')'
     | AddrOf(lv) -> 
-        text "& " ++ (self#pLvalPrec addrOfLevel () lv)
+        (match lv with
+        | Var(var),_ -> 
+          text "new "
+            ++ self#pType None () var.vtype
+            ++ text "[] {" 
+            ++ (self#pLvalPrec addrOfLevel () lv)
+            ++ text "}"
+        | _ -> 
+          E.s (E.error "Tried getting address of non-variable -- not implemented yet"))
     | AddrOfLabel(sref) -> begin
         (* Grab one of the labels *)
         let rec pickLabel = function
@@ -823,10 +838,13 @@ class javaPrinterClass : cilPrinter = object (self)
           ++ text "return;"
 
     | Return(Some e, l) ->
-        self#pLineDirective l
-          ++ text "return ("
-          ++ self#pExp () e
-          ++ text ");"
+        if !inMainFunc then
+          self#setInMainFunc false
+        else
+          self#pLineDirective l
+            ++ text "return ("
+            ++ self#pExp () e
+            ++ text ");"
           
     | Goto (sref, l) -> begin
         (* Grab one of the labels *)
