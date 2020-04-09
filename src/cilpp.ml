@@ -1271,9 +1271,7 @@ class javaPrinterClass : cilPrinter = object (self)
             nil
           else
             let offset = (text "int " ++ name ++ text "_offset = 0") in
-            let init = (text " = new " ++ self#pType None () bt ++ text "[1]") in
-            text "[]" ++ printAttributes a ++ name ++ init
-                          ++ text ";\n" ++ offset)
+            text "[]" ++ printAttributes a ++ name ++ text ";\n" ++ offset)
         in
         let name'' = (* Put the parenthesis *)
           match paren with 
