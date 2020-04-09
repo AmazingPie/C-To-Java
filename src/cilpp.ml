@@ -141,18 +141,21 @@ class javaPrinterClass : cilPrinter = object (self)
     (* If we're printing a function definition, we handle inlines specially.
      * Getting this right is a bit hairy. Let's try as follows. The definition
      * should take the "max" of *)
-    text (if v.vinline then "__inline " else "")
-      (* suppress extern on a function definition if it's not inline,;
-         suppress extern on a function prototype if it's not been used consistently *)
-      ++ (let suppressExtern = (beginsFunDef && not v.vinline) || (not beginsFunDef)
-         in (*if v.vstorage = Extern && suppressExtern then text " " else *) d_storage () v.vstorage)
-      ++ (self#pAttrs () stom)
-      ++ (self#pType (Some (text v.vname)) () v.vtype)
-      ++ text (if beginsFunDef then " /* comes from pVDecl with beginsFunDef; vinline is really "
-        ^ (if v.vinline then "true" else "false")
-        ^ " and the varinfo, magic " ^ (string_of_int (Obj.magic v))
-        ^ ", also has " ^ (string_of_int (List.length v.vvardecls))^ " entries in vvardecls */ " else " ")
-      ++ self#pAttrs () rest
+    if beginsFunDef && v.vname = "main" then
+      text "public static void main(String[] args)" ++ self#pAttrs () rest
+    else
+      text (if v.vinline then "__inline " else "")
+        (* suppress extern on a function definition if it's not inline,;
+           suppress extern on a function prototype if it's not been used consistently *)
+        ++ (let suppressExtern = (beginsFunDef && not v.vinline) || (not beginsFunDef)
+           in (*if v.vstorage = Extern && suppressExtern then text " " else *) d_storage () v.vstorage)
+        ++ (self#pAttrs () stom)
+        ++ (self#pType (Some (text v.vname)) () v.vtype)
+        ++ text (if beginsFunDef then " /* comes from pVDecl with beginsFunDef; vinline is really "
+          ^ (if v.vinline then "true" else "false")
+          ^ " and the varinfo, magic " ^ (string_of_int (Obj.magic v))
+          ^ ", also has " ^ (string_of_int (List.length v.vvardecls))^ " entries in vvardecls */ " else " ")
+        ++ self#pAttrs () rest
 
   (*** L-VALUES ***)
   method pLval () (lv:lval) =  (* lval (base is 1st field)  *)
