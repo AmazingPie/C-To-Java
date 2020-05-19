@@ -1,10 +1,16 @@
 # C-To-Java
 Compiling C into Java via CIL by using a CIL pass written in OCaml.
-CO620 research project supervised by @stephenrkell investigating runtime speeds from single program transformation into Java when compared to other
+CO620 research project supervised by @stephenrkell investigating runtime speeds from single program transformation into Java when compared to other methods.
+
+This project is not complete and will fail for medium-large programs as many type transformations are not currently supported.
 
 ## Getting Started
-This project is not particulary trivial to setup as of now and is not recommended for beginners. I hope to make some build scripts (probably make) to automate the setup and running however this is currently still to be seen.
+This project is not particulary trivial to setup as of now and is not recommended for beginners.
 
+**Edit:**
+A build script has been made to automate the development process. This script is fairly basic but should help the (re)building process.
+
+###Installation
 1. Install dependancies
   This project relies heavily on a modified driver for CIL called cilpp which is located in the toolsub repo (https://github.com/stephenrkell/toolsub) as well as a few more utilities in liballocs (https://github.com/stephenrkell/liballocs) and libcrunch (https://github.com/stephenrkell/libcrunch) which should all be downloaded and installed correctly, according to the intstructions on the relevant pages, before C-To-Java.
   
@@ -13,6 +19,16 @@ This project is not particulary trivial to setup as of now and is not recommende
   ```bash
   $ git clone https://github.com/AmazingPie/C-To-Java.git
   ```
+
+###Using The Script (recommended)
+3. Run build script
+  This will rebuild CIL as well as transform the C source file into Java
+  ```bash
+  $ cd C-To-Java/
+  $ ./make.sh /path/to/liballocs+libcrunch+toolsub ./examples/ptr.c
+  ```
+
+###Manually Building
 
 3. Copy C-To-Java into cilpp
   This project actually replaces the whole cilpp source file, by building upon it, and should be copied into the cilpp/src folder to overwrite the cilpp.ml and then uses the cilpp build system to transform files.
